@@ -100,7 +100,7 @@ sub parse_command_line {
 	  or exit 1;
     }
 
-    $sim = "bochs" if !defined $sim;
+    $sim = "qemu" if !defined $sim;
     $debug = "none" if !defined $debug;
     $vga = exists ($ENV{DISPLAY}) ? "window" : "none" if !defined $vga;
 
@@ -563,7 +563,6 @@ cpu: ips=1000000
 megs: $mem
 log: bochsout.txt
 panic: action=fatal
-user_shortcut: keys=ctrlaltdel
 EOF
     print BOCHSRC "gdbstub: enabled=1\n" if $debug eq 'gdb';
     print BOCHSRC "clock: sync=", $realtime ? 'realtime' : 'none',

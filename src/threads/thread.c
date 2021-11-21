@@ -178,7 +178,6 @@ thread_create (const char *name, int priority,
   t = palloc_get_page (PAL_ZERO);
   if (t == NULL)
     return TID_ERROR;
-
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
@@ -197,6 +196,9 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
+  
+  //初始化tick_blocked
+  t->ticks_blocked = 0;
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -210,6 +212,7 @@ thread_create (const char *name, int priority,
    This function must be called with interrupts turned off.  It
    is usually a better idea to use one of the synchronization
    primitives in synch.h. */
+   //阻塞线程
 void
 thread_block (void) 
 {
@@ -228,6 +231,7 @@ thread_block (void)
    be important: if the caller had disabled interrupts itself,
    it may expect that it can atomically unblock a thread and
    update other data. */
+   //将阻塞的进程解锁放置优先队列
 void
 thread_unblock (struct thread *t) 
 {
@@ -237,10 +241,17 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, (list_less_func *)&thread_cmp_priority, NULL);//按优先级插入
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
+
+//比较线程的优先级
+bool
+thread_cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+  return list_entry(a, struct thread, elem)->priority > list_entry(b, struct thread, elem)->priority;
+}
+
 
 /* Returns the name of the running thread. */
 const char *
@@ -298,17 +309,18 @@ thread_exit (void)
 
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
+//将线程放到就绪队列中,重新调度
 void
 thread_yield (void) 
 {
-  struct thread *cur = thread_current ();
+  struct thread *cur = thread_current (); //返回当前线程起始指针
   enum intr_level old_level;
   
-  ASSERT (!intr_context ());
+  ASSERT (!intr_context ()); //断言是否为软中断
 
   old_level = intr_disable ();
-  if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+  if (cur != idle_thread)
+  list_insert_ordered(&ready_list, &cur->elem, (list_less_func *)&thread_cmp_priority, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -424,7 +436,7 @@ kernel_thread (thread_func *function, void *aux)
   function (aux);       /* Execute the thread function. */
   thread_exit ();       /* If function() returns, kill the thread. */
 }
-
+
 /* Returns the running thread. */
 struct thread *
 running_thread (void) 
@@ -465,8 +477,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
-  list_push_back (&all_list, &t->allelem);
-  intr_set_level (old_level);
+  list_insert_ordered(&all_list, &t->allelem, (list_less_func *)&thread_cmp_priority, NULL);
+  intr_set_level(old_level);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -562,7 +574,7 @@ schedule (void)
 
   if (cur != next)
     prev = switch_threads (cur, next);
-  thread_schedule_tail (prev);
+  thread_schedule_tail (prev); //分配恢复之前执行的状态和现场,如果当前线程就清空资源。 
 }
 
 /* Returns a tid to use for a new thread. */
@@ -578,7 +590,19 @@ allocate_tid (void)
 
   return tid;
 }
-
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+//检查线程是否处于block状态,是的话每次ticks tick_block减1
+void
+block_thread_check(struct thread *t, void *aux UNUSED)
+{
+  if(t->status == THREAD_BLOCKED && t->ticks_blocked > 0){
+    t->ticks_blocked--;
+    if (t->ticks_blocked ==0){
+      thread_unblock(t);
+    }
+  }
+}

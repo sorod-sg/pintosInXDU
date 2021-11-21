@@ -77,6 +77,7 @@ intr_get_level (void)
 
 /* Enables or disables interrupts as specified by LEVEL and
    returns the previous interrupt status. */
+/* 如果之前是允许中断的,置IF为1,否则置为0 */
 enum intr_level
 intr_set_level (enum intr_level level) 
 {

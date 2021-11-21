@@ -18,6 +18,7 @@
 #endif
 
 /* Number of timer ticks since OS booted. */
+// 操作系统执行单位时间的前进计量。
 static int64_t ticks;
 
 /* Number of loops per timer tick.
@@ -67,10 +68,11 @@ timer_calibrate (void)
 }
 
 /* Returns the number of timer ticks since the OS booted. */
+/* 获取当前ticks的值并返回*/
 int64_t
 timer_ticks (void) 
 {
-  enum intr_level old_level = intr_disable ();
+  enum intr_level old_level = intr_disable ();//获取当前中断状态,并将其改为非中断状态
   int64_t t = ticks;
   intr_set_level (old_level);
   return t;
@@ -86,14 +88,18 @@ timer_elapsed (int64_t then)
 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
-void
+   //在tick时间中,如果线程为running状态就将他放置就绪队列中,进程执行下一个线程
+void //TODO
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
 
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+  ASSERT (intr_get_level () == INTR_ON);//断言判断是否可以中断
+  enum intr_level old_level = intr_disable();
+  struct thread *current_thread = thread_current();
+  current_thread->ticks_blocked = ticks;
+  thread_block();
+  intr_set_level(old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -172,6 +178,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+  thread_foreach(block_thread_check, NULL);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

@@ -17,6 +17,7 @@ struct switch_threads_frame
 /* Switches from CUR, which must be the running thread, to NEXT,
    which must also be running switch_threads(), returning CUR in
    NEXT's context. */
+   //将当前线程放到就绪队列,切换至下一个线程
 struct thread *switch_threads (struct thread *cur, struct thread *next);
 
 /* Stack frame for switch_entry(). */
