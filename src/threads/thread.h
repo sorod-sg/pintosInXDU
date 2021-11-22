@@ -89,7 +89,10 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-    int64_t ticks_blocked;
+    int64_t ticks_blocked;//阻塞时间
+    int base_priority;
+    struct list locks;  //线程所拥有的锁
+    struct lock *lock_waiting; //线程正在等待的锁
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -138,6 +141,12 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+
 void blocked_thread_check (struct thread *t, void *aux UNUSED);
+void thread_remove_lock(struct lock *lock);
+void thread_hold_the_lock(struct lock *lock);
+void thread_donate_priority(struct thread *t);
+void thread_update_priority(struct thread *t);
+bool thread_cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 #endif /* threads/thread.h */
